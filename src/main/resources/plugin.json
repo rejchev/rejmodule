@@ -8,6 +8,6 @@
   "features": [
     "ru.rejchev.rejmodule.RejModuleWrapper"
   ],
-  "download": "https://github.com/rejchev/rejmodule/releases/latest/download/rejmodule.jar",
+  "download": "https://github.com/rejchev/rejmodule/releases/latest/download/rejmodule-0.0.35.jar",
   "update": "https://github.com/rejchev/rejmodule/releases/latest/download/plugin.json"
 }
