@@ -13,7 +13,7 @@ import java.util.Map;
 
 @NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public final class ModuleMonoContext implements IModuleContext {
+public final class ModuleContext implements IModuleContext {
 
     PluginAPI botAPI;
 
@@ -23,22 +23,22 @@ public final class ModuleMonoContext implements IModuleContext {
 
     Collection<? extends IModuleComponent> components;
 
-    public ModuleMonoContext setBotApi(PluginAPI value) {
+    public ModuleContext setBotApi(PluginAPI value) {
         botAPI = value;
         return this;
     }
 
-    public ModuleMonoContext setPriority(int value) {
+    public ModuleContext setPriority(int value) {
         priority = value;
         return this;
     }
 
-    public <T extends IModuleComponent> ModuleMonoContext setComponents(Collection<T> value) {
+    public <T extends IModuleComponent> ModuleContext setComponents(Collection<T> value) {
         components = value;
         return this;
     }
 
-    public ModuleMonoContext setProperties(Map<String, IModuleProperty> value) {
+    public ModuleContext setProperties(Map<String, IModuleProperty> value) {
         properties = value;
         return this;
     }

@@ -74,7 +74,7 @@ public class RejModule implements Module {
         if(!isCanWorking())
             return;
 
-        ModuleMonoContext ctx = (new ModuleMonoContext())
+        ModuleContext ctx = (new ModuleContext())
                 .setBotApi(getPluginAPI())
                 .setComponents(getComponents())
                 .setPriority(BasePriority)
