@@ -1,0 +1,13 @@
+{
+  "name": "RejModule",
+  "author": "rejchev",
+  "version": "0.0.35",
+  "minVersion": "1.128.3",
+  "supportedVersion": "1.141.3",
+  "basePackage": "ru.rejchev.rejmodule",
+  "features": [
+    "ru.rejchev.rejmodule.RejModuleWrapper"
+  ],
+  "download": "https://github.com/rejchev/rejmodule/releases/latest/download/rejmodule.jar",
+  "update": "https://github.com/rejchev/rejmodule/releases/latest/download/plugin.json"
+}
