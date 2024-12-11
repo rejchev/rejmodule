@@ -1,4 +1,4 @@
-package ru.rejchev.rejmodule.configurations;
+package ru.rejchev.rejmodule.configurations.components;
 
 import eu.darkbot.api.config.annotations.Dropdown;
 import eu.darkbot.api.config.annotations.Number;
@@ -16,7 +16,7 @@ import java.util.Set;
 
 @Getter
 @FieldDefaults(level = AccessLevel.PUBLIC)
-public class AntiPushPetConfig {
+public class PetAntiPushComponentConfig {
 
     @Number(min = -1, max = 4_000_000, step = 10)
     int timeout = 1800;

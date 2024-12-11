@@ -25,24 +25,24 @@ public final class ModuleProperty implements IModuleProperty {
         this.value = value;
     }
 
-    public ModuleProperty setValue(Object value, int priority) {
-
-        if(getPriority() > (priority & PriorityMask))
-            return this;
-
-        this.priority = (priority & PriorityMask);
-        this.value = value;
-        return this;
-    }
-
     @Override
-    public int getPriority() {
+    public int priority() {
         return (int) priority;
     }
 
     @Override
-    public Object getValue() {
+    public Object value() {
         return value;
+    }
+
+    @Override
+    public ModuleAction update(Object value, int priority) {
+        if(priority() > (priority & PriorityMask))
+            return ModuleAction.Continue;
+
+        this.priority = (priority & PriorityMask);
+        this.value = value;
+        return ModuleAction.Change;
     }
 
     @Override
@@ -59,6 +59,6 @@ public final class ModuleProperty implements IModuleProperty {
 
     @Override
     public int compareTo(IModuleProperty o) {
-        return Integer.compare(getPriority(), o.getPriority());
+        return Integer.compare(priority(), o.priority());
     }
 }

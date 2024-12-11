@@ -10,55 +10,64 @@ import eu.darkbot.api.managers.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.FieldDefaults;
-import lombok.experimental.NonFinal;
-import ru.rejchev.rejmodule.configurations.ModuleConfig;
-import ru.rejchev.rejmodule.configurations.components.AttackComponentConfiguration;
+import ru.rejchev.rejmodule.configurations.CoreModuleConfig;
+import ru.rejchev.rejmodule.configurations.components.AttackComponentConfig;
 import ru.rejchev.rejmodule.module.ModuleAction;
 import ru.rejchev.rejmodule.module.ModuleProperty;
+import ru.rejchev.rejmodule.module.base.AbstractComponent;
 import ru.rejchev.rejmodule.module.base.IModuleContext;
 import ru.rejchev.rejmodule.module.components.attack.NpcWrapper;
 
 import java.util.Comparator;
 import java.util.Optional;
 
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AttackLegacyComponent extends AbstractModuleComponent {
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public final class BaseAttackComponent extends AbstractComponent {
 
-    @NonFinal
+    public static final String Signature = "attack";
+
+    public static final int BasePriority = 1;
+
+    private static BaseAttackComponent instance;
+
+    public static BaseAttackComponent instance() {
+
+        BaseAttackComponent p;
+
+        if((p = instance) == null)
+            instance = p = new BaseAttackComponent();
+
+        return instance;
+    }
+
     @Getter(value = AccessLevel.PRIVATE)
     AttackAPI attackAPI;
 
-    @NonFinal
     @Getter(value = AccessLevel.PRIVATE)
     HeroAPI heroAPI;
 
-    @NonFinal
     @Getter(value = AccessLevel.PRIVATE)
     EntitiesAPI entitiesAPI;
 
-    @NonFinal
     @Getter(value = AccessLevel.PRIVATE)
     GroupAPI groupAPI;
 
-    @NonFinal
     @Getter(value = AccessLevel.PRIVATE)
     MovementAPI movementAPI;
 
-    @NonFinal
     @Getter(AccessLevel.PRIVATE)
     ConfigSetting<Boolean> onlyKillInPreferredZone;
 
-    @NonFinal
     @Getter(AccessLevel.PRIVATE)
-    AttackComponentConfiguration config;
+    AttackComponentConfig config;
 
-    public AttackLegacyComponent(String signature, int priority) {
-        super(signature, priority);
+    private BaseAttackComponent() {
+        super(Signature, BasePriority);
     }
 
     @Override
     public ModuleAction preBehaviourAction(IModuleContext ctx) {
-        ModuleAction action = super.preBehaviourAction(ctx);
+        super.preBehaviourAction(ctx);
 
         updateNpcBlackList();
 
@@ -67,10 +76,7 @@ public class AttackLegacyComponent extends AbstractModuleComponent {
         if (!getAttackAPI().hasTarget()
         || getAttackAPI().isBugged()
         || isFakeTargetInAttackRadius(getAttackAPI().getTarget()))
-            ctx.getProperties().put(getSignature(), ModuleProperty.of(
-                    (potentialTarget != null ? potentialTarget.getNpc() : null),
-                    getPriority())
-            );
+            ctx.property(getSignature(), (potentialTarget != null ? potentialTarget.getNpc() : null), getPriority());
 
 
         Optional.ofNullable(NpcWrapper.of(
@@ -88,9 +94,8 @@ public class AttackLegacyComponent extends AbstractModuleComponent {
             if (getAttackAPI().isAttacking())
                 getAttackAPI().stopAttack();
 
-            ctx.getProperties().put(getSignature(), ModuleProperty.of(buf.getNpc(), getPriority()));
+            ctx.property(getSignature(), buf, getPriority());
         });
-
 
         return ModuleAction.Change;
     }
@@ -98,7 +103,7 @@ public class AttackLegacyComponent extends AbstractModuleComponent {
     @Override
     public void postBehaviourAction(final IModuleContext context) {
 
-        if(getProperty(context, "travel", GameMap.class) != null) {
+        if(getProperty(context, BaseMapTravelComponent.class, GameMap.class) != null) {
             if(getAttackAPI().hasTarget())
                 getAttackAPI().getTargetAs(Npc.class).setBlacklisted(20_000);
 
@@ -129,33 +134,23 @@ public class AttackLegacyComponent extends AbstractModuleComponent {
 
     @Override
     public String onLoad(final IModuleContext ctx) {
-        String err;
 
-        if((err = super.onLoad(ctx)) != null)
-            return err;
+        ModuleProperty moduleConfigProperty;
+        if((moduleConfigProperty = ctx.property("config", ModuleProperty.class)) == null)
+            return "Core module config is required";
 
-        ModuleConfig moduleConfig;
-        if((moduleConfig = getProperty(ctx, "rejConfig", ModuleConfig.class)) == null)
-            return "RejModule Config is required";
-
-        if((config = moduleConfig.getAttack()) == null)
+        if((config = moduleConfigProperty.value(CoreModuleConfig.class).getAttack()) == null)
             return "Attack module config is required";
 
-        if((heroAPI = getProperty(ctx, "heroAPI", HeroAPI.class)) == null)
-            err = "HeroAPI is required";
+        heroAPI = ctx.api(HeroAPI.class);
+        groupAPI = ctx.api(GroupAPI.class);
+        attackAPI = ctx.api(AttackAPI.class);
+        entitiesAPI = ctx.api(EntitiesAPI.class);
+        movementAPI = ctx.api(MovementAPI.class);
 
-        if((attackAPI = getProperty(ctx, "attackAPI", AttackAPI.class)) == null)
-            err = "AttackAPI is required";
-
-        if((entitiesAPI = getProperty(ctx, "entitiesAPI", EntitiesAPI.class)) == null)
-            err = "EntitiesAPI is required";
-
-        groupAPI = getPluginAPI().requireAPI(GroupAPI.class);
-        movementAPI = getPluginAPI().requireAPI(MovementAPI.class);
-
-        final ConfigAPI configAPI = getPluginAPI().requireAPI(ConfigAPI.class);
-
-        onlyKillInPreferredZone = configAPI.requireConfig("general.roaming.only_kill_preferred");
+//        final ConfigAPI configAPI = ctx.api(ConfigAPI.class);
+        onlyKillInPreferredZone = ctx.api(ConfigAPI.class)
+                .requireConfig("general.roaming.only_kill_preferred");
 
         return null;
     }
@@ -226,13 +221,15 @@ public class AttackLegacyComponent extends AbstractModuleComponent {
 
     // TODO: ...
     private double getTargetPriority(Npc target) {
-        final int sum = sumPriorities();
+        int sum;
+        if((sum = sumPriorities()) == 0)
+            sum = 1;
 
         return (getConfig().getPriorities().getUser() * target.getInfo().getPriority()
                 + getPetLocatorBasedPriority(getConfig().getPriorities().getPet(), target)
                 + getHPBasedPriority(getConfig().getPriorities().getHp(), target)
                 + getDistanceBasedPriority(getConfig().getPriorities().getDistance(), target))
-                / (((sum == 0) ? 1 : sum) * 100);
+                / (sum * 100);
     }
 
     private int sumPriorities() {

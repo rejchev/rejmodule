@@ -6,7 +6,7 @@
 
     <groupId>ru.rejchev</groupId>
     <artifactId>rejmodule</artifactId>
-    <version>0.0.35</version>
+    <version>0.1.0</version>
 
     <name>RejModule</name>
     <description>RejModule - simple anti push DarkBot Module</description>

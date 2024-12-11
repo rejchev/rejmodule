@@ -10,20 +10,41 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
-import ru.rejchev.rejmodule.configurations.AntiPushPetConfig;
-import ru.rejchev.rejmodule.configurations.ModuleConfig;
+import ru.rejchev.rejmodule.configurations.components.PetAntiPushComponentConfig;
+import ru.rejchev.rejmodule.configurations.CoreModuleConfig;
 import ru.rejchev.rejmodule.configurations.details.AntiPushActionReason;
 import ru.rejchev.rejmodule.module.ModuleAction;
 import ru.rejchev.rejmodule.module.ModuleProperty;
 import ru.rejchev.rejmodule.module.base.IModuleContext;
 import ru.rejchev.rejmodule.module.base.IModuleProperty;
-import ru.rejchev.rejmodule.module.components.antipush.base.IAntiPushComponent;
+import ru.rejchev.rejmodule.module.components.AntiPushComponent;
+import ru.rejchev.rejmodule.module.components.BasePetComponent;
+import ru.rejchev.rejmodule.module.components.antipush.base.AbstractAntiPushComponent;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class PetAntiPushComponentPart implements IAntiPushComponent {
+public final class PetAntiPush extends AbstractAntiPushComponent {
+
+    public static final String Signature = AntiPushComponent.Signature + ".pet";
+
+    public static final String ApproachSignature = Signature + ".approach";
+
+    public static final int BasePriority = 100;
+
+    private static PetAntiPush instance;
+
+    public static PetAntiPush instance() {
+
+        PetAntiPush c;
+
+        if((c = instance) == null)
+            instance = c = new PetAntiPush();
+
+        return instance;
+    }
+
     @NonFinal
     @Getter(AccessLevel.PRIVATE)
     long nextSaveSeconds;
@@ -34,43 +55,34 @@ public class PetAntiPushComponentPart implements IAntiPushComponent {
     @Getter
     @Setter
     @NonFinal
-    AntiPushPetConfig config;
+    PetAntiPushComponentConfig config;
 
     @Getter
-    Collection<Ship> pushers = new HashSet<>();
-
-    @Getter
-    @NonFinal
-    Collection<? extends Ship> mapShips = null;
+    Collection<Ship> pushers;
 
     @Getter
     @NonFinal
-    HeroAPI heroAPI = null;
+    Collection<? extends Ship> mapShips;
 
     @Getter
     @NonFinal
-    AttackAPI attackAPI = null;
+    HeroAPI heroAPI;
 
     @Getter
     @NonFinal
-    PetAPI petAPI = null;
+    AttackAPI attackAPI;
 
     @Getter
-    String signature;
-
-    long priority;
+    @NonFinal
+    PetAPI petAPI;
 
     @Getter
     @NonFinal
     long approachTimeOutTimePoint;
 
-    public PetAntiPushComponentPart(String signature, int priority) {
-
-        assert (priority > 0);
-        assert (signature != null && !signature.isEmpty());
-
-        this.signature = signature;
-        this.priority = priority;
+    private PetAntiPush() {
+        super(Signature, BasePriority);
+        pushers = new HashSet<>();
     }
 
     @Override
@@ -81,20 +93,21 @@ public class PetAntiPushComponentPart implements IAntiPushComponent {
     @Override
     public ModuleAction behaviourAction(final IModuleContext context) {
 
-        ModuleProperty property;
-        if((property = (ModuleProperty) context.getProperty("pet")) == null)
+        ModuleProperty petGearProperty;
+        if((petGearProperty = (ModuleProperty) context.property(BasePetComponent.class)) == null)
             return ModuleAction.Continue;
 
-        if(property.getPriority() > getPriority())
+        if(petGearProperty.priority() > getPriority())
             return ModuleAction.Continue;
 
         PetGear gear = null;
-        if(!context.getProperties().containsKey(getSignature()) && !context.getProperties().containsKey(getSignature() + "Ex")) {
+        if(getProperty(context, getSignature(), Ship[].class) == null
+        && getProperty(context, getApproachSignature(), Boolean.class) == null) {
 
             if(!getConfig().isUse_repairer())
                 return ModuleAction.Continue;
 
-            if(!getConfig().getOverridable_gears().contains(property.getValue(PetGear.class)))
+            if(!getConfig().getOverridable_gears().contains(petGearProperty.value(PetGear.class)))
                 return ModuleAction.Continue;
 
             if(getPetAPI().getHealth().getHp() >= (getPetAPI().getHealth().getMaxHp() - 1000))
@@ -103,26 +116,23 @@ public class PetAntiPushComponentPart implements IAntiPushComponent {
             gear = PetGear.REPAIR;
         }
 
-        property.setValue(gear, getPriority());
-
-        return ModuleAction.Change;
+        return petGearProperty.update(gear, getPriority());
     }
 
     @Override
     public void postBehaviourAction(final IModuleContext context) {
-        final IModuleProperty property = context.getProperty(getSignature());
+        final IModuleProperty property = context.property(getSignature());
 
-        if(property != null && property.getValue(Ship[].class) != null)
-            Arrays.stream(property.getValue(Ship[].class)).forEach(x -> getPushers().add(x));
-
-
-        context.getProperties().remove(getSignature());
-        context.getProperties().remove(getSignature() + "Ex");
+        if(property != null && property.value(Ship[].class) != null)
+            Arrays.stream(property.value(Ship[].class)).forEach(x -> getPushers().add(x));
     }
 
     @Override
     public ModuleAction preBehaviourAction(final IModuleContext ctx) {
-        final long seconds = getSeconds();
+        ctx.property(getSignature(), null, getPriority());
+        ctx.property(getApproachSignature(), null, getPriority());
+
+        final long seconds = ctx.seconds();
 
         if(getMapShips().stream().anyMatch(x -> isInRadius(x, getHeroAPI(), getConfig().getRadius()) && isBadGuy(x)))
             approachTimeOutTimePoint = seconds + 15L;
@@ -130,19 +140,20 @@ public class PetAntiPushComponentPart implements IAntiPushComponent {
         if(getPetAPI().isEnabled()) getHeroAPI().getPet().ifPresent(pet -> {
             if(pet.getHealth().hpDecreasedIn(100)) {
 
-                final Ship[] potentialPushers = getMapShips().stream().filter(x -> isAttacking(x, pet)).toArray(Ship[]::new);
+                final Ship[] potentialPushers = getMapShips().stream()
+                        .filter(x -> isAttacking(x, pet)).toArray(Ship[]::new);
 
                 if(potentialPushers.length == 0)
                     return;
 
                 nextSaveSeconds = seconds + getAntiPushEffectActiveDuration();
 
-                ctx.getProperties().put(getSignature(), ModuleProperty.of(potentialPushers, getPriority()));
+                ctx.property(getSignature(), potentialPushers, getPriority());
             }
         });
 
         if(getApproachTimeOutTimePoint() > seconds)
-            ctx.getProperties().put("petAntiPushEx", ModuleProperty.of(true, getPriority()));
+            ctx.property(getApproachSignature(), true, getPriority());
 
         return getApproachTimeOutTimePoint() > seconds || getNextSaveSeconds() > seconds
                 ? ModuleAction.Change
@@ -151,24 +162,18 @@ public class PetAntiPushComponentPart implements IAntiPushComponent {
 
     @Override
     public String onLoad(final IModuleContext ctx) {
-        if(getAttackAPI() == null)
-            attackAPI = ctx.getProperty("attackAPI").getValue(AttackAPI.class);
 
-        if(getHeroAPI() == null)
-            heroAPI = ctx.getProperty("heroAPI").getValue(HeroAPI.class);
-
-        if(getMapShips() == null)
-            mapShips = ctx.getProperty("entitiesAPI").getValue(EntitiesAPI.class).getShips();
-
-        if(getPetAPI() == null)
-            petAPI = ctx.getProperty("petAPI").getValue(PetAPI.class);
-
-        ModuleConfig moduleConfig;
-        if((moduleConfig = ctx.getProperty("rejConfig").getValue(ModuleConfig.class)) == null)
+        CoreModuleConfig moduleConfig;
+        if((moduleConfig = ctx.property("rejConfig").value(CoreModuleConfig.class)) == null)
             return "RejModule config is required";
 
         if(moduleConfig.getAntipush() != null)
             config = moduleConfig.getAntipush().getPet();
+
+        petAPI = ctx.api(PetAPI.class);
+        heroAPI = ctx.api(HeroAPI.class);
+        attackAPI = ctx.api(AttackAPI.class);
+        mapShips = ctx.api(EntitiesAPI.class).getShips();
 
         return null;
     }
@@ -209,7 +214,7 @@ public class PetAntiPushComponentPart implements IAntiPushComponent {
         return getConfig().getHide_reasons().contains(reason);
     }
 
-    public int getPriority() {
-        return (int) priority;
+    private String getApproachSignature() {
+        return PetAntiPush.ApproachSignature;
     }
 }

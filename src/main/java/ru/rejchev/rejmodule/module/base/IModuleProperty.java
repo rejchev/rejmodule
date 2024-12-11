@@ -1,15 +1,18 @@
 package ru.rejchev.rejmodule.module.base;
 
+import ru.rejchev.rejmodule.module.ModuleAction;
+
 public interface IModuleProperty extends Comparable<IModuleProperty> {
 
-    int getPriority();
+    int priority();
 
-    Object getValue();
+    Object value();
 
-    default <T> T getValue(Class<T> clazz) {
-        try {
-            return clazz.cast(getValue());
-        } catch (ClassCastException ignored){}
+    ModuleAction update(Object value, int priority);
+
+    default <T> T value(Class<T> clazz) {
+        try { return clazz.cast(value());}
+        catch (ClassCastException ignored){}
         return null;
     }
 }

@@ -1,39 +1,42 @@
 package ru.rejchev.rejmodule.module.components;
 
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.experimental.FieldDefaults;
-import lombok.experimental.NonFinal;
-import ru.rejchev.rejmodule.configurations.AntiPushConfig;
 import ru.rejchev.rejmodule.module.ModuleAction;
-import ru.rejchev.rejmodule.module.base.IModuleComponent;
+import ru.rejchev.rejmodule.module.base.AbstractComponent;
 import ru.rejchev.rejmodule.module.base.IModuleContext;
+import ru.rejchev.rejmodule.module.components.antipush.CitadelDrawFireAntiPush;
+import ru.rejchev.rejmodule.module.components.antipush.PetAntiPush;
 import ru.rejchev.rejmodule.module.components.antipush.base.IAntiPushComponent;
 
 import java.util.*;
-import java.util.function.Function;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AntiPushComponent implements IModuleComponent {
+public final class AntiPushComponent extends AbstractComponent {
 
-    long priority;
+    public static final String Signature = "antipush";
 
-    @Getter
-    String signature;
+    public static final int BasePriority = 100;
+
+    private static AntiPushComponent instance;
+
+    public static AntiPushComponent instance() {
+
+        AntiPushComponent c;
+
+        if((c = instance) == null)
+            instance = c = new AntiPushComponent();
+
+        return instance;
+    }
 
     @Getter(value = AccessLevel.PRIVATE)
     List<IAntiPushComponent> components;
 
-    public static AntiPushComponent of(String signature, int priority, IAntiPushComponent... components) {
-        return (new AntiPushComponent(signature, priority)).addAll((components != null) ? List.of(components) : List.of());
-    }
-
-    public AntiPushComponent(String signature, int priority) {
-        this.priority = priority;
-        this.signature = signature;
-        this.components = new LinkedList<>();
+    private AntiPushComponent() {
+        super(Signature, BasePriority);
+        components = new LinkedList<>();
     }
 
     @Override
@@ -53,6 +56,8 @@ public class AntiPushComponent implements IModuleComponent {
 
     @Override
     public String onLoad(IModuleContext ctx) {
+
+        register(List.of(PetAntiPush.instance(), CitadelDrawFireAntiPush.instance()));
 
         String status;
         for(IAntiPushComponent component : getComponents()) {
@@ -81,12 +86,13 @@ public class AntiPushComponent implements IModuleComponent {
         return action;
     }
 
-    public AntiPushComponent addAll(List<IAntiPushComponent> antiPushComponents) {
-        getComponents().addAll(antiPushComponents.stream().filter(Objects::nonNull).toList());
+    public <T extends IAntiPushComponent> AntiPushComponent register(T value) {
+        getComponents().add(value);
         return this;
     }
 
-    public int getPriority() {
-        return (int) priority;
+    public <T extends IAntiPushComponent> AntiPushComponent register(List<T> antiPushComponents) {
+        antiPushComponents.forEach(this::register);
+        return this;
     }
 }

@@ -1,6 +1,5 @@
 package ru.rejchev.rejmodule.module.components;
 
-import eu.darkbot.api.config.types.NpcFlag;
 import eu.darkbot.api.game.entities.Box;
 import eu.darkbot.api.game.entities.Npc;
 import eu.darkbot.api.game.other.GameMap;
@@ -11,49 +10,56 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
+import ru.rejchev.rejmodule.module.base.AbstractComponent;
 import ru.rejchev.rejmodule.module.base.IModuleContext;
 
-import java.util.Comparator;
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public final class BaseMovementComponent extends AbstractComponent {
 
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class MovementLegacyComponent extends AbstractModuleComponent {
+    public static final String Signature = "movement";
 
+    public static final int BasePriority = 1;
 
-    @NonFinal
+    private static BaseMovementComponent instance;
+
+    public static BaseMovementComponent instance() {
+
+        BaseMovementComponent p;
+
+        if((p = instance) == null)
+            instance = p = new BaseMovementComponent();
+
+        return instance;
+    }
+
     @Getter(AccessLevel.PRIVATE)
     MovementAPI movementAPI;
 
-    @NonFinal
     @Getter(AccessLevel.PRIVATE)
     HeroAPI heroAPI;
 
-    @NonFinal
     @Getter(AccessLevel.PRIVATE)
     AttackAPI attackAPI;
 
-    @NonFinal
     @Getter(AccessLevel.PRIVATE)
     StarSystemAPI starSystemAPI;
 
-    @NonFinal
     @Getter(AccessLevel.PRIVATE)
     BotAPI botAPI;
 
-    @NonFinal
     @Getter(AccessLevel.PRIVATE)
     EntitiesAPI entitiesAPI;
 
-    @NonFinal
     boolean backwards;
 
-    public MovementLegacyComponent(String signature, int priority) {
-        super(signature, priority);
+    private BaseMovementComponent() {
+        super(Signature, BasePriority);
     }
 
     @Override
     public void postBehaviourAction(IModuleContext context) {
 
-        if(getProperty(context, "travel", GameMap.class) != null)
+        if(getProperty(context, BaseMapTravelComponent.class, GameMap.class) != null)
             return;
 
         if(getMovementAPI().isOutOfMap()) {
@@ -62,8 +68,7 @@ public class MovementLegacyComponent extends AbstractModuleComponent {
         }
 
         Box targetBox;
-        if(context.getProperty("collect") != null
-        && (targetBox = getProperty(context, "collect", Box.class)) != null) {
+        if((targetBox = getProperty(context, BaseCollectorComponent.class, Box.class)) != null) {
 
             if(getHeroAPI().distanceTo(targetBox) <= 250.0) {
                 getMovementAPI().stop(false);
@@ -71,38 +76,19 @@ public class MovementLegacyComponent extends AbstractModuleComponent {
             }
 
             getMovementAPI().moveTo(targetBox);
+
             return;
         }
 
         Npc targetNpc;
-        if((targetNpc = getProperty(context, "attack", Npc.class)) != null)
+        if((targetNpc = getProperty(context, BaseAttackComponent.class, Npc.class)) != null)
             moveToAnSafePosition(context, targetNpc);
 
         else if(getHeroAPI().distanceTo(getMovementAPI().getDestination()) < (double)20.0F)
             getMovementAPI().moveRandom();
     }
 
-    protected boolean isTargetInPreferredRadius(Locatable target) {
-        return (!getMovementAPI().isInPreferredZone(target) && getHeroAPI().distanceTo(target) <= 2000.0);
-    }
-
-    protected Locatable getConcurrentTarget(IModuleContext ctx) {
-
-        final Npc targetNpc = getProperty(ctx, "attack", Npc.class);
-        final Box targetBox = getProperty(ctx, "collect", Box.class);
-
-        if(targetBox == null)
-            return targetNpc;
-
-        if(targetNpc == null)
-            return targetBox;
-
-        return getHeroAPI().distanceTo(targetBox) > getHeroAPI().distanceTo(targetNpc)
-                ? targetNpc
-                : targetBox;
-    }
-
-    protected void moveToAnSafePosition(IModuleContext ctx, Npc target) {
+    private void moveToAnSafePosition(IModuleContext ctx, Npc target) {
         Location targetLoc = target.getLocationInfo().destinationInTime(250);
 
         double distance = getHeroAPI().distanceTo(getAttackAPI().getTarget());
@@ -131,7 +117,7 @@ public class MovementLegacyComponent extends AbstractModuleComponent {
         getMovementAPI().moveTo(direction);
     }
 
-    protected Location getBestDir(Locatable targetLoc, double angle, double angleDiff, double distance, Npc target) {
+    private Location getBestDir(Locatable targetLoc, double angle, double angleDiff, double distance, Npc target) {
         int maxCircleIterations = 4;
         int iteration = 1;
         double forwardScore = 0;
@@ -147,7 +133,7 @@ public class MovementLegacyComponent extends AbstractModuleComponent {
         return Location.of(targetLoc, angle + angleDiff * (backwards ? -1 : 1), distance);
     }
 
-    protected void searchValidLocation(Location direction, Location targetLoc, double angle, double distance) {
+    private void searchValidLocation(Location direction, Location targetLoc, double angle, double distance) {
         // Search in a spiral around the wanted position
         // MAX_LOCATION_SEARCH = 10_000
         while (!getMovementAPI().canMove(direction) && distance < 10_000) {
@@ -160,7 +146,7 @@ public class MovementLegacyComponent extends AbstractModuleComponent {
             direction.toAngle(targetLoc, angle, 500);
     }
 
-    protected double score(Locatable loc, Npc target) {
+    private double score(Locatable loc, Npc target) {
         return (getMovementAPI().canMove(loc) ? 0 : -1000) - getEntitiesAPI().getNpcs().stream() // Consider barrier as bad as 1000 radius units.
                 .filter(n -> target != n)
                 .mapToDouble(n -> Math.max(0, n.getInfo().getRadius() - n.distanceTo(loc)))
@@ -169,23 +155,13 @@ public class MovementLegacyComponent extends AbstractModuleComponent {
 
     @Override
     public String onLoad(IModuleContext ctx) {
-        if(getAttackAPI() == null)
-            attackAPI = ctx.getProperty("attackAPI").getValue(AttackAPI.class);
 
-        if(getHeroAPI() == null)
-            heroAPI = ctx.getProperty("heroAPI").getValue(HeroAPI.class);
-
-        if(getStarSystemAPI() == null)
-            starSystemAPI = ctx.getProperty("starSystemAPI").getValue(StarSystemAPI.class);
-
-        if(getBotAPI() == null)
-            botAPI = ctx.getProperty("botAPI").getValue(BotAPI.class);
-
-        if((entitiesAPI = getProperty(ctx, "entitiesAPI", EntitiesAPI.class)) == null)
-            return "EntitiesAPI is required";
-
-        if((movementAPI = getProperty(ctx, "movementAPI", MovementAPI.class)) == null)
-            return "MovementAPI is required";
+        botAPI = ctx.api(BotAPI.class);
+        heroAPI = ctx.api(HeroAPI.class);
+        attackAPI = ctx.api(AttackAPI.class);
+        entitiesAPI = ctx.api(EntitiesAPI.class);
+        movementAPI = ctx.api(MovementAPI.class);
+        starSystemAPI = ctx.api(StarSystemAPI.class);
 
         return null;
     }

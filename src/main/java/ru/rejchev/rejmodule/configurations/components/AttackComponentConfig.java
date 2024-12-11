@@ -8,7 +8,7 @@ import lombok.experimental.FieldDefaults;
 
 @Getter
 @FieldDefaults(level = AccessLevel.PUBLIC)
-public class AttackComponentConfiguration {
+public class AttackComponentConfig {
 
     @Option
     AttackPriorityRule priorities = new AttackPriorityRule();

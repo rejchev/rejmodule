@@ -6,35 +6,26 @@ import eu.darkbot.api.config.ConfigSetting;
 import eu.darkbot.api.extensions.Configurable;
 import eu.darkbot.api.extensions.Feature;
 import eu.darkbot.api.extensions.Module;
-import eu.darkbot.api.managers.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
-import ru.rejchev.rejmodule.configurations.RejModuleConfiguration;
-import ru.rejchev.rejmodule.module.RejModule;
+import ru.rejchev.rejmodule.configurations.RejModuleConfig;
+import ru.rejchev.rejmodule.module.ModuleCore;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@Feature(name = "RejModule", description = "Extended kill & collect module")
-public class RejModuleWrapper implements Module, Configurable<RejModuleConfiguration> {
-
-    @Getter(value = AccessLevel.PRIVATE)
-    EventBrokerAPI eventBrokerAPI;
+@Feature(name = "RejModule", description = "")
+public final class RejModule implements Module, Configurable<RejModuleConfig> {
 
     @NonFinal
     @Getter(value = AccessLevel.PRIVATE)
-    RejModuleConfiguration config;
+    RejModuleConfig config;
 
     @Getter(AccessLevel.PRIVATE)
-    RejModule module;
+    ModuleCore module;
 
-    @Getter(AccessLevel.PRIVATE)
-    PluginAPI pluginAPI;
-
-    public RejModuleWrapper(PluginAPI pluginAPI, EventBrokerAPI eventBrokerAPI) {
-        this.pluginAPI = pluginAPI;
-        this.eventBrokerAPI = eventBrokerAPI;
-        this.module = RejModule.of(pluginAPI);
+    public RejModule(PluginAPI pluginAPI) {
+        this.module = ModuleCore.of(pluginAPI);
     }
 
     @Override
@@ -63,8 +54,7 @@ public class RejModuleWrapper implements Module, Configurable<RejModuleConfigura
     }
 
     @Override
-    public void setConfig(ConfigSetting<RejModuleConfiguration> configSetting) {
-        this.config = configSetting.getValue();
-        getModule().setConfig(getConfig().getModule());
+    public void setConfig(ConfigSetting<RejModuleConfig> configSetting) {
+        getModule().setConfig((this.config = configSetting.getValue()).getModule());
     }
 }

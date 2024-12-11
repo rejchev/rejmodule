@@ -7,17 +7,18 @@ import eu.darkbot.api.game.items.SelectableItem;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.FieldDefaults;
-import ru.rejchev.rejmodule.configurations.components.AttackComponentConfiguration;
+import ru.rejchev.rejmodule.configurations.components.AntiPushComponentConfig;
+import ru.rejchev.rejmodule.configurations.components.AttackComponentConfig;
 import ru.rejchev.rejmodule.configurations.options.FormationDropDown;
 
 // TODO: ...
 
 @Getter
 @FieldDefaults(level = AccessLevel.PUBLIC)
-public class ModuleConfig {
+public class CoreModuleConfig {
 
     @Option
-    AttackComponentConfiguration attack = new AttackComponentConfiguration();
+    AttackComponentConfig attack = new AttackComponentConfig();
 
     @Option
     public ShipModeConfiguration research_mode = new ShipModeConfiguration();
@@ -34,5 +35,5 @@ public class ModuleConfig {
     }
 
     @Option
-    public AntiPushConfig antipush = new AntiPushConfig();
+    public AntiPushComponentConfig antipush = new AntiPushComponentConfig();
 }

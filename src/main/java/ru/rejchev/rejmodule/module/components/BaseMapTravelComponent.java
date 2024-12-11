@@ -11,11 +11,28 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import ru.rejchev.rejmodule.module.ModuleAction;
 import ru.rejchev.rejmodule.module.ModuleProperty;
+import ru.rejchev.rejmodule.module.base.AbstractComponent;
 import ru.rejchev.rejmodule.module.base.IModuleContext;
 import ru.rejchev.rejmodule.module.base.IModuleProperty;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class MapTravelComponent extends AbstractModuleComponent {
+public final class BaseMapTravelComponent extends AbstractComponent {
+
+    public static final String Signature = "travel";
+
+    public static final int BasePriority = 1;
+
+    private static BaseMapTravelComponent instance;
+
+    public static BaseMapTravelComponent instance() {
+
+        BaseMapTravelComponent p;
+
+        if((p = instance) == null)
+            instance = p = new BaseMapTravelComponent();
+
+        return instance;
+    }
 
     @NonFinal
     @Getter(AccessLevel.PROTECTED)
@@ -29,53 +46,41 @@ public class MapTravelComponent extends AbstractModuleComponent {
     @Getter(AccessLevel.PRIVATE)
     ConfigAPI configAPI;
 
-    public MapTravelComponent(String signature, int priority) {
-        super(signature, priority);
+    private BaseMapTravelComponent() {
+        super(Signature, BasePriority);
     }
 
     @Override
     public ModuleAction preBehaviourAction(IModuleContext ctx) {
-        IModuleProperty moduleProperty;
+        ModuleAction action = super.preBehaviourAction(ctx);
 
-        if((moduleProperty = ctx.getProperty(getSignature())) != null && moduleProperty.getPriority() > getPriority())
-            return ModuleAction.Continue;
+        GameMap workingMap;
+        if((workingMap = getWorkingMap(getConfigAPI(), getStarSystemAPI())) == null)
+            return action;
 
-        final GameMap workingMap = getWorkingMap(getConfigAPI(), getStarSystemAPI());
+        if(workingMap == getStarSystemAPI().getCurrentMap())
+            return action;
 
-        ctx.getProperties().put(getSignature(), new ModuleProperty(
-                (workingMap != null && workingMap != getStarSystemAPI().getCurrentMap()) ? workingMap : null,
-                getPriority())
-        );
-
-        return ModuleAction.Change;
+        return ctx.property(getSignature(), workingMap, getPriority());
     }
 
     @Override
     public void postBehaviourAction(IModuleContext context) {
 
-        final GameMap travelMap = context.getProperty(getSignature()).getValue(GameMap.class);
+        final GameMap travelMap = context.property(getSignature()).value(GameMap.class);
 
         if(travelMap == null || travelMap == getStarSystemAPI().getCurrentMap())
             return;
 
-        getBotAPI().setModule(getPluginAPI().requireInstance(MapModule.class)).setTarget(travelMap);
+        getBotAPI().setModule(context.api().requireInstance(MapModule.class)).setTarget(travelMap);
     }
 
     @Override
     public String onLoad(IModuleContext ctx) {
-        String err = null;
 
-        if((err = super.onLoad(ctx)) != null)
-            return err;
-
-        if((botAPI = getProperty(ctx, "botAPI", BotAPI.class)) == null)
-            err = "BotAPI is required";
-
-        if((starSystemAPI = getProperty(ctx, "starSystemAPI", StarSystemAPI.class)) == null)
-            err = "StarSystemAPI is required";
-
-        if((configAPI = getProperty(ctx, "configAPI", ConfigAPI.class)) == null)
-            err = "StarSystemAPI is required";
+        botAPI = ctx.api(BotAPI.class);
+        configAPI = ctx.api(ConfigAPI.class);
+        starSystemAPI = ctx.api(StarSystemAPI.class);
 
         return null;
     }
