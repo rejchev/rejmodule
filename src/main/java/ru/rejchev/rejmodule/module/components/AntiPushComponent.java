@@ -41,12 +41,34 @@ public final class AntiPushComponent extends AbstractComponent {
 
     @Override
     public ModuleAction preBehaviourAction(IModuleContext ctx) {
-        return initAction(ctx);
+        ModuleAction action = ModuleAction.Continue, buf;
+
+        for(IAntiPushComponent component : getComponents()) {
+            if(component != null && (buf = component.preBehaviourAction(ctx)).ordinal() > action.ordinal()) {
+                if(buf.ordinal() >= ModuleAction.Handled.ordinal())
+                    buf = ModuleAction.Change;
+
+                action = buf;
+            }
+        }
+
+        return action;
     }
 
     @Override
     public ModuleAction behaviourAction(IModuleContext ctx) {
-        return initAction(ctx);
+        ModuleAction action = ModuleAction.Continue, buf;
+
+        for(IAntiPushComponent component : getComponents()) {
+            if(component != null && (buf = component.behaviourAction(ctx)).ordinal() > action.ordinal()) {
+                if(buf.ordinal() >= ModuleAction.Handled.ordinal())
+                    buf = ModuleAction.Change;
+
+                action = buf;
+            }
+        }
+
+        return action;
     }
 
     @Override
@@ -65,26 +87,12 @@ public final class AntiPushComponent extends AbstractComponent {
                 continue;
 
             if((status = component.onLoad(ctx)) != null)
-                return status;
+                return component.getClass().getSimpleName() + ":: " + status;
         }
 
         return null;
     }
 
-    private ModuleAction initAction(IModuleContext ctx) {
-        ModuleAction action = ModuleAction.Continue, buf;
-
-        for(IAntiPushComponent component : getComponents()) {
-            if(component != null && (buf = component.preBehaviourAction(ctx)).ordinal() > action.ordinal()) {
-                if(buf.ordinal() >= ModuleAction.Handled.ordinal())
-                    buf = ModuleAction.Change;
-
-                action = buf;
-            }
-        }
-
-        return action;
-    }
 
     public <T extends IAntiPushComponent> AntiPushComponent register(T value) {
         getComponents().add(value);

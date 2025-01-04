@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
+import lombok.extern.slf4j.Slf4j;
 import ru.rejchev.rejmodule.configurations.CoreModuleConfig;
 import ru.rejchev.rejmodule.module.base.IModuleAction;
 import ru.rejchev.rejmodule.module.base.IModuleComponent;
@@ -71,7 +72,10 @@ public final class ModuleCore implements Module {
         if(!isCanWorking())
             return;
 
-        final ModuleContext ctx = ModuleContext.of(getPluginAPI())
+        if(isInitialTick())
+            register();
+
+        ModuleContext ctx = ModuleContext.of(getPluginAPI())
                 .components(getComponents())
                 .properties(getProperties());
 
@@ -142,9 +146,7 @@ public final class ModuleCore implements Module {
         return this;
     }
 
-    private boolean initModule(IModuleContext ctx) {
-        isInitialTick = false;
-
+    private void register() {
         register("config", ModuleProperty.of(getConfig(), ModuleCore.BasePriority));
 
         // base components
@@ -155,9 +157,15 @@ public final class ModuleCore implements Module {
 
         // extended components
         register(AntiPushComponent.class, AntiPushComponent.instance());
+    }
+
+    private boolean initModule(IModuleContext ctx) {
+        isInitialTick = false;
 
         for(IActionLoad elem : streamActions(IActionLoad.class).toList()) {
-            setStatus(elem.onLoad(ctx));
+
+            if((status = elem.onLoad(ctx)) != null)
+                status = elem.getClass().getSimpleName() + "::" + status;
 
             if(getStatus() != null)
                 break;

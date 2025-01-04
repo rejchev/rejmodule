@@ -93,8 +93,8 @@ public final class PetAntiPush extends AbstractAntiPushComponent {
     @Override
     public ModuleAction behaviourAction(final IModuleContext context) {
 
-        ModuleProperty petGearProperty;
-        if((petGearProperty = (ModuleProperty) context.property(BasePetComponent.class)) == null)
+        IModuleProperty petGearProperty;
+        if((petGearProperty = context.property(BasePetComponent.class)) == null)
             return ModuleAction.Continue;
 
         if(petGearProperty.priority() > getPriority())
@@ -116,7 +116,7 @@ public final class PetAntiPush extends AbstractAntiPushComponent {
             gear = PetGear.REPAIR;
         }
 
-        return petGearProperty.update(gear, getPriority());
+        return context.property(BasePetComponent.class, gear, getPriority());
     }
 
     @Override
@@ -163,12 +163,12 @@ public final class PetAntiPush extends AbstractAntiPushComponent {
     @Override
     public String onLoad(final IModuleContext ctx) {
 
-        CoreModuleConfig moduleConfig;
-        if((moduleConfig = ctx.property("rejConfig").value(CoreModuleConfig.class)) == null)
-            return "RejModule config is required";
+        ModuleProperty moduleConfigProperty;
+        if((moduleConfigProperty = ctx.property("config", ModuleProperty.class)) == null)
+            return "Core module config is required";
 
-        if(moduleConfig.getAntipush() != null)
-            config = moduleConfig.getAntipush().getPet();
+        if((config = moduleConfigProperty.value(CoreModuleConfig.class).getAntipush().getPet()) == null)
+            return "Antipush pet module config is required";
 
         petAPI = ctx.api(PetAPI.class);
         heroAPI = ctx.api(HeroAPI.class);
@@ -180,10 +180,6 @@ public final class PetAntiPush extends AbstractAntiPushComponent {
 
     private boolean isAttacking(final Ship ship, final Pet pet) {
         return ship.getTarget() == pet || ship.isAttacking(pet) || ship.isAiming(pet);
-    }
-
-    private long getSeconds() {
-        return TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis());
     }
 
     private boolean isBadGuy(Ship ship) {

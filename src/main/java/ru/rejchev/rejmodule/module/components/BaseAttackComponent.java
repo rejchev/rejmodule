@@ -5,6 +5,7 @@ import eu.darkbot.api.config.types.NpcFlag;
 import eu.darkbot.api.game.entities.Npc;
 import eu.darkbot.api.game.other.GameMap;
 import eu.darkbot.api.game.other.Locatable;
+import eu.darkbot.api.game.other.Location;
 import eu.darkbot.api.game.other.Lockable;
 import eu.darkbot.api.managers.*;
 import lombok.AccessLevel;
@@ -61,6 +62,11 @@ public final class BaseAttackComponent extends AbstractComponent {
     @Getter(AccessLevel.PRIVATE)
     AttackComponentConfig config;
 
+    boolean backwards;
+
+    @Getter(AccessLevel.PRIVATE)
+    Locatable lastPreferredZoneLocation;
+
     private BaseAttackComponent() {
         super(Signature, BasePriority);
     }
@@ -68,6 +74,9 @@ public final class BaseAttackComponent extends AbstractComponent {
     @Override
     public ModuleAction preBehaviourAction(IModuleContext ctx) {
         super.preBehaviourAction(ctx);
+
+        if(getLastPreferredZoneLocation() == null || getMovementAPI().isInPreferredZone(getHeroAPI()))
+            lastPreferredZoneLocation = getHeroAPI().getLocationInfo().getCurrent();
 
         updateNpcBlackList();
 
@@ -98,6 +107,17 @@ public final class BaseAttackComponent extends AbstractComponent {
         });
 
         return ModuleAction.Change;
+    }
+
+    @Override
+    public ModuleAction behaviourAction(IModuleContext context) {
+
+        Npc target;
+        if((target = getProperty(context, getSignature(), Npc.class)) == null /*|| !getAttackAPI().hasTarget()*/)
+            return ModuleAction.Continue;
+
+        // TODO: user priority
+        return context.property(BaseMovementComponent.class, getMovementLocation(target), getPriority());
     }
 
     @Override
@@ -188,8 +208,13 @@ public final class BaseAttackComponent extends AbstractComponent {
         return target == null || !target.isValid();
     }
 
-    private boolean isInPreferred(Locatable target) {
-        return getMovementAPI().isInPreferredZone(target) || (!getMovementAPI().isInPreferredZone(target) && getHeroAPI().distanceTo(target) <= 2000.0);
+    private boolean isInPreferred(Npc target) {
+
+        if(getMovementAPI().isInPreferredZone(target))
+            return true;
+
+        return !getMovementAPI().isInPreferredZone(target) && getMovementAPI()
+                .getDistanceBetween(target, getLastPreferredZoneLocation()) <= getConfig().getPreferred_radius();
     }
 
     private void updateNpcBlackList() {
@@ -237,5 +262,92 @@ public final class BaseAttackComponent extends AbstractComponent {
             +  getConfig().getPriorities().getDistance()
             +  getConfig().getPriorities().getHp()
             +  getConfig().getPriorities().getPet();
+    }
+
+
+    private Location getMovementLocation(Npc target) {
+        Location targetLoc = target.getLocationInfo().destinationInTime(250);
+
+        double distance = getHeroAPI().distanceTo(target);
+        double angle = targetLoc.angleTo(getHeroAPI());
+
+        double radius = 560.0;
+
+        if(target.getInfo() != null)
+            radius = modifyRadius(target, target.getInfo().getRadius());
+
+        double speed = target.getSpeed();
+
+        double angleDiff;
+        {
+            double maxRadFix = radius / 2,
+                    radiusFix = (int) Math.max(Math.min(radius - distance, maxRadFix), -maxRadFix);
+            distance = (radius += radiusFix);
+            // Moved distance + speed - distance to chosen radius same angle, divided by radius
+            angleDiff = Math.max((getHeroAPI().getSpeed() * 0.625) + (Math.max(200, speed) * 0.625)
+                    - getHeroAPI().distanceTo(Location.of(targetLoc, angle, radius)), 0) / radius;
+        }
+
+        Location direction = getBestDir(targetLoc, angle, angleDiff, distance, target);
+        searchValidLocation(direction, targetLoc, angle, distance);
+
+        return direction;
+    }
+
+    private Location getBestDir(Locatable targetLoc, double angle, double angleDiff, double distance, Npc target) {
+        int maxCircleIterations = 4;
+        int iteration = 1;
+        double forwardScore = 0;
+        double backScore = 0;
+        do {
+            forwardScore += score(Locatable.of(targetLoc, angle + (angleDiff * iteration), distance), target);
+            backScore += score(Locatable.of(targetLoc, angle - (angleDiff * iteration), distance), target);
+            // Toggle direction if either one of the directions is perfect, or one is 300 better.
+            if (forwardScore < 0 != backScore < 0 || Math.abs(forwardScore - backScore) > 300) break;
+        } while (iteration++ < maxCircleIterations);
+
+        if (iteration <= maxCircleIterations) backwards = backScore > forwardScore;
+        return Location.of(targetLoc, angle + angleDiff * (backwards ? -1 : 1), distance);
+    }
+
+    private void searchValidLocation(Location direction, Location targetLoc, double angle, double distance) {
+        // Search in a spiral around the wanted position
+        // MAX_LOCATION_SEARCH = 10_000
+        while (!getMovementAPI().canMove(direction) && distance < 10_000) {
+            direction.toAngle(targetLoc, angle += backwards ? -0.3 : 0.3, distance += 2);
+        }
+
+        // Found no valid location within in a spiral, settle for whatever
+        // 10_000 = MAX_LOCATION_SEARCH
+        if (distance >= 10_000)
+            direction.toAngle(targetLoc, angle, 500);
+    }
+
+    private double score(Locatable loc, Npc target) {
+        return (getMovementAPI().canMove(loc) ? 0 : -1000) - getEntitiesAPI().getNpcs().stream() // Consider barrier as bad as 1000 radius units.
+                .filter(n -> target != n)
+                .mapToDouble(n -> Math.max(0, n.getInfo().getRadius() - n.distanceTo(loc)))
+                .sum();
+    }
+
+    private double modifyRadius(Npc target, double radius) {
+        if (target.getHealth().hpPercent() < 0.25 && target.getInfo().hasExtraFlag(NpcFlag.AGGRESSIVE_FOLLOW))
+            radius *= 0.75;
+
+        if (!getHeroAPI().isAttacking() && target.isMoving() && angleDiff(target.getLocationInfo().getAngle(), getHeroAPI().angleTo(target)) > 1.6)
+            radius = Math.min(560, radius);
+
+        if (getAttackAPI().isCastingAbility())
+            radius = Math.min(560, radius);
+
+        if (!target.isMoving() || target.getHealth().hpPercent() < 0.25)
+            radius = Math.min(600, radius);
+
+        return radius;
+    }
+
+    private static double angleDiff(double alpha, double beta) {
+        double phi = Math.abs(beta - alpha) % (Math.PI * 2);
+        return phi > Math.PI ? ((Math.PI * 2) - phi) : phi;
     }
 }

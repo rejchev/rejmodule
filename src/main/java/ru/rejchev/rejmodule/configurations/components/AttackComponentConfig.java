@@ -10,6 +10,9 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PUBLIC)
 public class AttackComponentConfig {
 
+    @Number(min = 0, max = 100_000, step = 10)
+    int preferred_radius = 1000;
+
     @Option
     AttackPriorityRule priorities = new AttackPriorityRule();
 

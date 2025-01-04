@@ -12,10 +12,9 @@ import lombok.Getter;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import ru.rejchev.rejmodule.module.ModuleAction;
+import ru.rejchev.rejmodule.module.ModuleProperty;
 import ru.rejchev.rejmodule.module.base.AbstractComponent;
 import ru.rejchev.rejmodule.module.base.IModuleContext;
-
-import java.util.concurrent.TimeUnit;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public final class BasePetComponent extends AbstractComponent {
@@ -79,34 +78,24 @@ public final class BasePetComponent extends AbstractComponent {
         if(getHeroAPI().getPet().isEmpty())
             return;
 
-        PetGear gear = context.property(getSignature()).value(PetGear.class);
+        PetGear gear;
 
-        if(getLastGear() == null)
-            lastGear = gear;
+        getPetEnableSetting().setValue(((gear = getProperty(context, getSignature(), PetGear.class)) != null));
 
-        if(gear == null
-        || !getPetAPI().hasGear(gear)
-        || getProperty(context, BaseMapTravelComponent.class, GameMap.class) != null) {
-            petSetEnabled(false, null);
-            return;
-        }
-
-        final long seconds = getSeconds();
+        final long seconds = context.seconds();
 
         if(getLastGear() != PetGear.REPAIR && gear == PetGear.REPAIR)
-            nextGearCheck = seconds + 2;
+            nextGearCheck = seconds + 5;
 
         if(getLastGear() == PetGear.REPAIR && gear == PetGear.REPAIR && nextGearCheck <= seconds) {
 
             final Pet pet = getHeroAPI().getPet().orElse(null);
 
-            if(pet != null && !pet.getHealth().hpDecreasedIn(100))
+            if(pet != null && !pet.getHealth().hpIncreasedIn(100))
                 gear = PetGear.PASSIVE;
         }
 
-        petSetEnabled(true, gear);
-
-        if(getLastGear() != gear)
+        if(getLastGear() != (gear = updatePet(context, gear)))
             lastGear = gear;
     }
 
@@ -121,21 +110,19 @@ public final class BasePetComponent extends AbstractComponent {
         return null;
     }
 
-    private void petSetEnabled(boolean value, PetGear petGear) {
+    private PetGear updatePet(IModuleContext context, PetGear petGear) {
 
-        if(!value)
+        if(petGear != null && getProperty(context, BaseMapTravelComponent.class, GameMap.class) != null)
             petGear = null;
 
-        if(petGearSetting.getValue() != petGear)
+        if(petGear != null && !getPetAPI().hasGear(petGear))
+            petGear = PetGear.PASSIVE;
+
+        if(petGear != null && petGearSetting.getValue() != petGear)
             petGearSetting.setValue(petGear);
 
-        if(petEnableSetting.getValue() != value)
-            petEnableSetting.setValue(value);
+        getPetAPI().setEnabled(petGear != null);
 
-        getPetAPI().setEnabled(value);
-    }
-
-    public long getSeconds() {
-        return TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis());
+        return petGear;
     }
 }

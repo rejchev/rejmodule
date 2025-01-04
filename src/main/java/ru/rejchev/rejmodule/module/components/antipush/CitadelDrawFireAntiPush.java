@@ -12,6 +12,7 @@ import ru.rejchev.rejmodule.configurations.components.CitadelAntiPushComponentCo
 import ru.rejchev.rejmodule.configurations.CoreModuleConfig;
 import ru.rejchev.rejmodule.configurations.details.AntiPushActionReason;
 import ru.rejchev.rejmodule.module.ModuleAction;
+import ru.rejchev.rejmodule.module.ModuleProperty;
 import ru.rejchev.rejmodule.module.base.IModuleContext;
 import ru.rejchev.rejmodule.module.components.AntiPushComponent;
 import ru.rejchev.rejmodule.module.components.BaseAttackComponent;
@@ -67,12 +68,12 @@ public final class CitadelDrawFireAntiPush extends AbstractAntiPushComponent {
     @Override
     public String onLoad(final IModuleContext ctx) {
 
-        CoreModuleConfig moduleConfig;
-        if((moduleConfig = ctx.property("rejConfig").value(CoreModuleConfig.class)) == null)
-            return "RejModule config is required";
+        ModuleProperty moduleConfigProperty;
+        if((moduleConfigProperty = ctx.property("config", ModuleProperty.class)) == null)
+            return "Core module config is required";
 
-        if(moduleConfig.getAntipush() != null)
-            config = moduleConfig.getAntipush().getCitadel();
+        if((config = moduleConfigProperty.value(CoreModuleConfig.class).getAntipush().getCitadel()) == null)
+            return "Antipush citadel module config is required";
 
         heroAPI = ctx.api(HeroAPI.class);
         attackAPI = ctx.api(AttackAPI.class);
